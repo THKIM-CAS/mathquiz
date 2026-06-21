@@ -1,5 +1,7 @@
 const MODE_TYPES = ["2x1", "1x2", "2x2"];
 const STORAGE_KEY = "timesPracticeSettings";
+const DEFAULT_TIME_LIMIT_SECONDS = 60;
+const TIME_LIMIT_OPTIONS = [30, 60, 90, 120];
 
 const elements = {
   sessionStatus: document.querySelector("#sessionStatus"),
@@ -7,12 +9,18 @@ const elements = {
   checkSetButton: document.querySelector("#checkSetButton"),
   modeButtons: [...document.querySelectorAll("[data-mode]")],
   countSelect: document.querySelector("#countSelect"),
+  timeLimitSelect: document.querySelector("#timeLimitSelect"),
+  summaryPanel: document.querySelector("#summaryPanel"),
+  summaryMark: document.querySelector("#summaryMark"),
+  summaryAverage: document.querySelector("#summaryAverage"),
   listTitle: document.querySelector("#listTitle"),
   scoreBadge: document.querySelector("#scoreBadge"),
   problemGrid: document.querySelector("#problemGrid"),
   previousButton: document.querySelector("#previousButton"),
   nextButton: document.querySelector("#nextButton"),
   problemCounter: document.querySelector("#problemCounter"),
+  timerDisplay: document.querySelector("#timerDisplay"),
+  timerText: document.querySelector("#timerText"),
   leftOperand: document.querySelector("#leftOperand"),
   rightOperand: document.querySelector("#rightOperand"),
   answerInput: document.querySelector("#answerInput"),
@@ -28,12 +36,15 @@ const elements = {
 const state = {
   mode: "mix",
   count: 10,
+  timeLimitSeconds: DEFAULT_TIME_LIMIT_SECONDS,
   problems: [],
   currentIndex: 0,
   checked: false,
   tool: "pencil",
   isDrawing: false,
   activeStroke: null,
+  timerStartedAt: null,
+  timerId: null,
 };
 
 const canvasContext = elements.canvas.getContext("2d");
@@ -47,9 +58,13 @@ function loadSettings() {
     if ([6, 10, 12, 16].includes(Number(saved.count))) {
       state.count = Number(saved.count);
     }
+    if (TIME_LIMIT_OPTIONS.includes(Number(saved.timeLimitSeconds))) {
+      state.timeLimitSeconds = Number(saved.timeLimitSeconds);
+    }
   } catch {
     state.mode = "mix";
     state.count = 10;
+    state.timeLimitSeconds = DEFAULT_TIME_LIMIT_SECONDS;
   }
 }
 
@@ -57,7 +72,11 @@ function saveSettings() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ mode: state.mode, count: state.count })
+      JSON.stringify({
+        mode: state.mode,
+        count: state.count,
+        timeLimitSeconds: state.timeLimitSeconds,
+      })
     );
   } catch {
     return;
@@ -100,6 +119,8 @@ function createProblem(type) {
     userAnswer: "",
     result: null,
     strokes: [],
+    timeSpentMs: 0,
+    timedOut: false,
   };
 }
 
@@ -148,6 +169,78 @@ function sanitizeAnswer(value) {
   return value.replace(/\D/g, "").slice(0, 4);
 }
 
+function timeLimitMs() {
+  return state.timeLimitSeconds * 1000;
+}
+
+function expectedAnswerLength(problem) {
+  return String(problem.answer).length;
+}
+
+function hasCompleteAnswer(problem) {
+  return problem.userAnswer.length >= expectedAnswerLength(problem);
+}
+
+function isProblemComplete(problem) {
+  return problem.timedOut || hasCompleteAnswer(problem);
+}
+
+function allProblemsComplete() {
+  return state.problems.length > 0 && state.problems.every(isProblemComplete);
+}
+
+function canAcceptAnswer(problem) {
+  return !state.checked && !problem.timedOut;
+}
+
+function canTypeInAnswerField(problem) {
+  return canAcceptAnswer(problem) && problem.strokes.length === 0;
+}
+
+function shouldRunTimer(problem) {
+  return (
+    !state.checked &&
+    !problem.timedOut &&
+    !hasCompleteAnswer(problem) &&
+    problem.timeSpentMs < timeLimitMs()
+  );
+}
+
+function activeElapsedMs(problem) {
+  if (problem !== currentProblem() || state.timerStartedAt === null) {
+    return 0;
+  }
+
+  return Math.max(0, Date.now() - state.timerStartedAt);
+}
+
+function elapsedMs(problem) {
+  return Math.min(timeLimitMs(), problem.timeSpentMs + activeElapsedMs(problem));
+}
+
+function remainingMs(problem) {
+  return Math.max(0, timeLimitMs() - elapsedMs(problem));
+}
+
+function formatClock(ms) {
+  const totalSeconds = Math.ceil(Math.max(0, ms) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.round(Math.max(0, ms) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes === 0) {
+    return `${seconds} sec`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, "0")} min`;
+}
+
 function updateProblemResult(problem) {
   if (!state.checked) {
     problem.result = null;
@@ -170,11 +263,28 @@ function answeredCount() {
   return state.problems.filter((problem) => problem.userAnswer !== "").length;
 }
 
+function attemptedProblems() {
+  return state.problems.filter(
+    (problem) => problem.timeSpentMs > 0 || problem.userAnswer !== "" || problem.timedOut
+  );
+}
+
+function averageTimeMs() {
+  const problems = attemptedProblems();
+  if (problems.length === 0) {
+    return 0;
+  }
+
+  const total = problems.reduce((sum, problem) => sum + problem.timeSpentMs, 0);
+  return total / problems.length;
+}
+
 function renderSettings() {
   elements.modeButtons.forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.mode === state.mode));
   });
   elements.countSelect.value = String(state.count);
+  elements.timeLimitSelect.value = String(state.timeLimitSeconds);
 }
 
 function renderProblemGrid() {
@@ -194,14 +304,19 @@ function renderProblemGrid() {
     } else if (problem.result === false) {
       button.classList.add("incorrect");
     }
+    if (problem.timedOut) {
+      button.classList.add("timed-out");
+    }
 
     const status = problem.result === true
       ? "correct"
       : problem.result === false
         ? "incorrect"
-        : problem.userAnswer
-          ? "answered"
-          : "empty";
+        : problem.timedOut
+          ? "timed out"
+          : problem.userAnswer
+            ? "answered"
+            : "empty";
     button.setAttribute("aria-label", `Problem ${index + 1}, ${status}`);
     button.addEventListener("click", () => selectProblem(index));
     elements.problemGrid.append(button);
@@ -212,12 +327,57 @@ function renderScore() {
   if (state.checked) {
     elements.listTitle.textContent = "Score";
     elements.scoreBadge.textContent = `${correctCount()} / ${state.problems.length}`;
-    elements.sessionStatus.textContent = `${correctCount()} of ${state.problems.length} correct`;
+    elements.sessionStatus.textContent = `${correctCount()} of ${state.problems.length} correct · ${formatDuration(averageTimeMs())} average`;
   } else {
     elements.listTitle.textContent = "Answered";
     elements.scoreBadge.textContent = `${answeredCount()} / ${state.problems.length}`;
-    elements.sessionStatus.textContent = "Ready";
+    elements.sessionStatus.textContent = "Timed practice";
   }
+}
+
+function renderSummary() {
+  elements.summaryPanel.hidden = !state.checked;
+
+  if (!state.checked) {
+    return;
+  }
+
+  elements.summaryMark.textContent = `${correctCount()} / ${state.problems.length}`;
+  elements.summaryAverage.textContent = `${formatDuration(averageTimeMs())} / problem`;
+}
+
+function renderTimer() {
+  const problem = currentProblem();
+  const remaining = remainingMs(problem);
+  const isExpired = problem.timedOut || remaining <= 0;
+  const isStopped = state.checked || hasCompleteAnswer(problem);
+
+  elements.timerText.textContent = formatClock(remaining);
+  elements.timerDisplay.classList.toggle("warning", !isExpired && !isStopped && remaining <= 10000);
+  elements.timerDisplay.classList.toggle("expired", isExpired);
+  elements.timerDisplay.classList.toggle("stopped", !isExpired && isStopped);
+  elements.timerDisplay.setAttribute(
+    "aria-label",
+    `${formatClock(remaining)} remaining for problem ${state.currentIndex + 1}`
+  );
+}
+
+function renderAnswerEntryState() {
+  const problem = currentProblem();
+  const acceptsAnswer = canAcceptAnswer(problem);
+  const textEntryAllowed = canTypeInAnswerField(problem);
+
+  elements.answerInput.readOnly = !textEntryAllowed;
+  elements.answerInput.classList.toggle("entry-locked", !acceptsAnswer || !textEntryAllowed);
+  elements.answerInput.title = !acceptsAnswer
+    ? "Answer entry is closed for this problem."
+    : textEntryAllowed
+      ? ""
+      : "Use the keypad after scratch work has been entered.";
+
+  elements.keypad.querySelectorAll("button").forEach((button) => {
+    button.disabled = !acceptsAnswer;
+  });
 }
 
 function renderCurrentProblem() {
@@ -226,13 +386,17 @@ function renderCurrentProblem() {
   elements.leftOperand.textContent = String(problem.left);
   elements.rightOperand.textContent = String(problem.right);
   elements.answerInput.value = problem.userAnswer;
+  renderAnswerEntryState();
 
   elements.previousButton.disabled = state.currentIndex === 0;
   elements.nextButton.disabled = state.currentIndex === state.problems.length - 1;
 
   elements.feedback.className = "feedback";
   if (!state.checked) {
-    elements.feedback.textContent = "";
+    elements.feedback.textContent = problem.timedOut ? "Time up" : "";
+    if (problem.timedOut) {
+      elements.feedback.classList.add("incorrect");
+    }
     return;
   }
 
@@ -247,19 +411,118 @@ function renderCurrentProblem() {
 
 function renderToolButtons() {
   const pencilActive = state.tool === "pencil";
+  const toolsDisabled = !canAcceptAnswer(currentProblem());
   elements.pencilButton.classList.toggle("active", pencilActive);
   elements.eraserButton.classList.toggle("active", !pencilActive);
   elements.pencilButton.setAttribute("aria-pressed", String(pencilActive));
   elements.eraserButton.setAttribute("aria-pressed", String(!pencilActive));
+  elements.pencilButton.disabled = toolsDisabled;
+  elements.eraserButton.disabled = toolsDisabled;
+  elements.undoButton.disabled = toolsDisabled;
+  elements.clearScratchButton.disabled = toolsDisabled;
 }
 
 function render() {
   renderSettings();
   renderScore();
+  renderSummary();
   renderProblemGrid();
   renderCurrentProblem();
+  renderTimer();
   renderToolButtons();
   renderScratch();
+}
+
+function clearTimerInterval() {
+  if (state.timerId === null) {
+    return;
+  }
+
+  window.clearInterval(state.timerId);
+  state.timerId = null;
+}
+
+function commitCurrentTimer() {
+  if (state.timerStartedAt === null || state.problems.length === 0) {
+    return;
+  }
+
+  const problem = currentProblem();
+  const delta = Math.max(0, Date.now() - state.timerStartedAt);
+  problem.timeSpentMs = Math.min(timeLimitMs(), problem.timeSpentMs + delta);
+  state.timerStartedAt = null;
+}
+
+function syncCurrentTimer() {
+  if (state.problems.length === 0) {
+    clearTimerInterval();
+    state.timerStartedAt = null;
+    return;
+  }
+
+  const problem = currentProblem();
+  if (shouldRunTimer(problem)) {
+    if (state.timerStartedAt === null) {
+      state.timerStartedAt = Date.now();
+    }
+    if (state.timerId === null) {
+      state.timerId = window.setInterval(onTimerTick, 250);
+    }
+  } else {
+    commitCurrentTimer();
+    clearTimerInterval();
+  }
+
+  renderTimer();
+}
+
+function findNextIncompleteProblemIndex() {
+  for (let offset = 1; offset <= state.problems.length; offset += 1) {
+    const index = (state.currentIndex + offset) % state.problems.length;
+    if (!isProblemComplete(state.problems[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function expireCurrentProblem() {
+  commitCurrentTimer();
+  const problem = currentProblem();
+  problem.timeSpentMs = timeLimitMs();
+  problem.timedOut = true;
+  clearTimerInterval();
+
+  if (allProblemsComplete()) {
+    checkSet();
+    return;
+  }
+
+  const nextIndex = findNextIncompleteProblemIndex();
+  if (nextIndex !== -1 && nextIndex !== state.currentIndex) {
+    state.currentIndex = nextIndex;
+    state.activeStroke = null;
+  }
+
+  render();
+  syncCurrentTimer();
+}
+
+function onTimerTick() {
+  const problem = currentProblem();
+
+  if (!shouldRunTimer(problem)) {
+    syncCurrentTimer();
+    return;
+  }
+
+  if (remainingMs(problem) <= 0) {
+    expireCurrentProblem();
+    return;
+  }
+
+  renderTimer();
 }
 
 function selectProblem(index) {
@@ -267,20 +530,27 @@ function selectProblem(index) {
     return;
   }
 
+  commitCurrentTimer();
   state.currentIndex = index;
   state.activeStroke = null;
   render();
+  syncCurrentTimer();
   elements.answerInput.focus({ preventScroll: true });
 }
 
 function newSet() {
+  clearTimerInterval();
+  state.timerStartedAt = null;
   saveSettings();
   generateProblems();
   render();
+  syncCurrentTimer();
   elements.answerInput.focus({ preventScroll: true });
 }
 
 function checkSet() {
+  commitCurrentTimer();
+  clearTimerInterval();
   state.checked = true;
   updateAllResults();
   render();
@@ -288,30 +558,59 @@ function checkSet() {
 
 function storeAnswer(value) {
   const problem = currentProblem();
+  if (!canAcceptAnswer(problem)) {
+    elements.answerInput.value = problem.userAnswer;
+    return;
+  }
+
+  const wasComplete = hasCompleteAnswer(problem);
   problem.userAnswer = sanitizeAnswer(value);
+  const isComplete = hasCompleteAnswer(problem);
   elements.answerInput.value = problem.userAnswer;
+
+  if (!wasComplete && isComplete) {
+    commitCurrentTimer();
+  }
 
   if (state.checked) {
     updateProblemResult(problem);
   }
 
   renderScore();
+  renderSummary();
   renderProblemGrid();
   renderCurrentProblem();
+  syncCurrentTimer();
+
+  if (!state.checked && allProblemsComplete()) {
+    checkSet();
+  }
 }
 
 function appendDigit(digit) {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   const value = sanitizeAnswer(`${elements.answerInput.value}${digit}`);
   storeAnswer(value);
   elements.answerInput.focus({ preventScroll: true });
 }
 
 function backspaceAnswer() {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   storeAnswer(elements.answerInput.value.slice(0, -1));
   elements.answerInput.focus({ preventScroll: true });
 }
 
 function clearAnswer() {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   storeAnswer("");
   elements.answerInput.focus({ preventScroll: true });
 }
@@ -400,6 +699,10 @@ function renderScratch() {
 }
 
 function startDrawing(event) {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   if (event.button !== undefined && event.button !== 0) {
     return;
   }
@@ -439,6 +742,7 @@ function stopDrawing(event) {
   state.isDrawing = false;
   state.activeStroke = null;
   renderScratch();
+  renderAnswerEntryState();
 }
 
 function cancelDrawing(event) {
@@ -451,13 +755,23 @@ function cancelDrawing(event) {
 }
 
 function undoStroke() {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   currentProblem().strokes.pop();
   renderScratch();
+  renderAnswerEntryState();
 }
 
 function clearScratch() {
+  if (!canAcceptAnswer(currentProblem())) {
+    return;
+  }
+
   currentProblem().strokes = [];
   renderScratch();
+  renderAnswerEntryState();
 }
 
 function attachEvents() {
@@ -476,10 +790,20 @@ function attachEvents() {
     newSet();
   });
 
+  elements.timeLimitSelect.addEventListener("change", () => {
+    state.timeLimitSeconds = Number(elements.timeLimitSelect.value);
+    newSet();
+  });
+
   elements.previousButton.addEventListener("click", () => selectProblem(state.currentIndex - 1));
   elements.nextButton.addEventListener("click", () => selectProblem(state.currentIndex + 1));
 
   elements.answerInput.addEventListener("input", (event) => {
+    if (!canTypeInAnswerField(currentProblem())) {
+      event.target.value = currentProblem().userAnswer;
+      return;
+    }
+
     storeAnswer(event.target.value);
   });
 
@@ -534,6 +858,7 @@ function attachEvents() {
       state.isDrawing = false;
       state.activeStroke = null;
       renderScratch();
+      renderAnswerEntryState();
     }
   });
 
@@ -545,4 +870,5 @@ attachEvents();
 generateProblems();
 renderSettings();
 render();
+syncCurrentTimer();
 requestAnimationFrame(resizeCanvas);
