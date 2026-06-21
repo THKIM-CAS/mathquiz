@@ -1,0 +1,595 @@
+:root {
+  --page: #f4f6f8;
+  --surface: #ffffff;
+  --surface-soft: #edf7f6;
+  --ink: #1f2937;
+  --muted: #637083;
+  --line: #d6dde6;
+  --line-strong: #a9b5c5;
+  --primary: #0f766e;
+  --primary-dark: #0b5d57;
+  --blue: #2563eb;
+  --gold: #c77916;
+  --danger: #c2413a;
+  --success: #138a4f;
+  --shadow: 0 18px 45px rgba(31, 41, 55, 0.13);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.055) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px),
+    var(--page);
+  background-size: 28px 28px;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-sprite {
+  display: none;
+}
+
+.icon {
+  width: 1.2em;
+  height: 1.2em;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.app-shell {
+  width: min(1500px, calc(100% - 32px));
+  min-height: calc(100vh - 32px);
+  margin: 16px auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.topbar,
+.settings-bar,
+.problem-list,
+.workspace,
+.keypad-panel {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+}
+
+.topbar {
+  min-height: 82px;
+  padding: 18px 20px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 2.5vw, 2.15rem);
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.session-status {
+  min-height: 1.4em;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.top-actions,
+.scratch-actions,
+.tool-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.button,
+.icon-button,
+.segment,
+.keypad button {
+  min-height: 46px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.button:active,
+.icon-button:active,
+.segment:active,
+.keypad button:active {
+  transform: translateY(1px);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.button.primary {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.button.primary:hover {
+  background: var(--primary-dark);
+}
+
+.button.secondary {
+  color: var(--ink);
+  background: #f8fafc;
+  border-color: var(--line-strong);
+}
+
+.button.secondary:hover {
+  border-color: var(--blue);
+}
+
+.settings-bar {
+  min-height: 70px;
+  padding: 12px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-group {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-label {
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.segmented-control {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.segment {
+  min-width: 72px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #f8fafc;
+  border-color: var(--line);
+  font-weight: 800;
+}
+
+.segment[aria-pressed="true"] {
+  color: #ffffff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.select-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+select {
+  min-width: 82px;
+  min-height: 46px;
+  padding: 0 36px 0 12px;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #ffffff;
+  font-weight: 800;
+}
+
+.practice-layout {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(154px, 0.5fr) minmax(420px, 2.5fr) minmax(216px, 0.7fr);
+  gap: 14px;
+}
+
+.problem-list,
+.workspace,
+.keypad-panel {
+  border-radius: 8px;
+}
+
+.problem-list {
+  padding: 14px;
+}
+
+.list-header {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+#scoreBadge {
+  color: var(--ink);
+  font-size: 1.05rem;
+}
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(54px, 1fr));
+  gap: 8px;
+}
+
+.problem-jump {
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  font-weight: 900;
+  font-size: 1.1rem;
+}
+
+.problem-jump.active {
+  border-color: var(--blue);
+  box-shadow: inset 0 0 0 2px rgba(37, 99, 235, 0.18);
+}
+
+.problem-jump.correct {
+  color: #ffffff;
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.problem-jump.incorrect {
+  color: #ffffff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.workspace {
+  min-width: 0;
+  padding: 14px;
+  display: grid;
+  grid-template-rows: auto minmax(360px, 1fr);
+  gap: 12px;
+}
+
+.problem-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.problem-header {
+  min-height: 58px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 52px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.problem-counter {
+  text-align: center;
+  color: var(--muted);
+  font-weight: 900;
+}
+
+.icon-button {
+  width: 48px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: #f8fafc;
+  border-color: var(--line-strong);
+}
+
+.icon-button:hover,
+.icon-button.active,
+.icon-button[aria-pressed="true"] {
+  color: #ffffff;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+
+.problem-main {
+  min-height: 172px;
+  padding: 18px;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.vertical-problem {
+  justify-self: center;
+  min-width: 156px;
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.operand {
+  min-height: 1.08em;
+  font-size: clamp(3rem, 8vw, 5.4rem);
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.operand.multiplier {
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0.12em;
+}
+
+.answer-line {
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.answer-box {
+  display: grid;
+  gap: 8px;
+}
+
+.answer-box label {
+  color: var(--muted);
+  font-weight: 900;
+}
+
+#answerInput {
+  width: 100%;
+  min-height: 76px;
+  padding: 4px 14px;
+  border: 2px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #ffffff;
+  font-size: clamp(2.2rem, 5vw, 4rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#answerInput:focus {
+  border-color: var(--blue);
+  outline: 3px solid rgba(37, 99, 235, 0.18);
+}
+
+.feedback {
+  min-height: 1.6em;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+.feedback.correct {
+  color: var(--success);
+}
+
+.feedback.incorrect {
+  color: var(--danger);
+}
+
+.scratch-panel {
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #ffffff;
+  display: grid;
+  grid-template-rows: auto minmax(280px, 1fr);
+}
+
+.scratch-toolbar {
+  min-height: 58px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+}
+
+#scratchCanvas {
+  width: 100%;
+  height: 100%;
+  min-height: 280px;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.14) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(37, 99, 235, 0.14) 1px, transparent 1px),
+    #fffdf8;
+  background-size: 32px 32px;
+}
+
+.keypad-panel {
+  padding: 14px;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.keypad button {
+  aspect-ratio: 1.15;
+  min-width: 0;
+  padding: 0;
+  color: var(--ink);
+  background: #ffffff;
+  border-color: var(--line-strong);
+  font-size: clamp(1.2rem, 2.4vw, 2rem);
+  font-weight: 900;
+}
+
+.keypad button:hover {
+  border-color: var(--blue);
+  background: #eff6ff;
+}
+
+.keypad button[data-action="clear"] {
+  color: #ffffff;
+  background: var(--gold);
+  border-color: var(--gold);
+  font-size: 1rem;
+}
+
+.keypad button[data-action="backspace"] {
+  color: #ffffff;
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+@media (max-width: 1120px) {
+  .practice-layout {
+    grid-template-columns: minmax(128px, 0.45fr) minmax(420px, 1fr);
+  }
+
+  .keypad-panel {
+    grid-column: 1 / -1;
+  }
+
+  .keypad {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .keypad button {
+    aspect-ratio: 1.8;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100% - 16px, 680px);
+    min-height: calc(100vh - 16px);
+    margin: 8px auto;
+    gap: 8px;
+  }
+
+  .topbar,
+  .settings-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .top-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-bar,
+  .control-group,
+  .select-control {
+    align-items: stretch;
+  }
+
+  .control-group,
+  .select-control {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .segmented-control {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .segment {
+    min-width: 0;
+  }
+
+  .practice-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .problem-grid {
+    grid-template-columns: repeat(auto-fit, minmax(46px, 1fr));
+  }
+
+  .problem-main {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace {
+    grid-template-rows: auto minmax(380px, 1fr);
+  }
+
+  .keypad {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .keypad button {
+    aspect-ratio: 1.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
