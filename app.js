@@ -1,7 +1,7 @@
 const MODE_TYPES = ["2x1", "1x2", "2x2"];
 const STORAGE_KEY = "timesPracticeSettings";
 const DEFAULT_TIME_LIMIT_SECONDS = 60;
-const TIME_LIMIT_OPTIONS = [30, 60, 90, 120];
+const TIME_LIMIT_OPTIONS = [10, 20, 30, 40, 50, 60];
 
 const elements = {
   sessionStatus: document.querySelector("#sessionStatus"),
