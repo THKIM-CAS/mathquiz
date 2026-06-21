@@ -181,8 +181,16 @@ function hasCompleteAnswer(problem) {
   return problem.userAnswer.length >= expectedAnswerLength(problem);
 }
 
+function hasSolvingWork(problem) {
+  return problem.strokes.length > 0;
+}
+
+function hasSolvedProblem(problem) {
+  return hasSolvingWork(problem) && hasCompleteAnswer(problem);
+}
+
 function isProblemComplete(problem) {
-  return problem.timedOut || hasCompleteAnswer(problem);
+  return problem.timedOut || hasSolvedProblem(problem);
 }
 
 function allProblemsComplete() {
@@ -194,14 +202,44 @@ function canAcceptAnswer(problem) {
 }
 
 function canTypeInAnswerField(problem) {
-  return canAcceptAnswer(problem) && problem.strokes.length === 0;
+  return canAcceptAnswer(problem) && !hasSolvingWork(problem);
+}
+
+function canProceedFromProblem(problem) {
+  return state.checked || problem.timedOut || hasSolvedProblem(problem);
+}
+
+function canSelectProblem(index) {
+  if (state.checked || index <= state.currentIndex) {
+    return true;
+  }
+
+  for (let problemIndex = state.currentIndex; problemIndex < index; problemIndex += 1) {
+    if (!canProceedFromProblem(state.problems[problemIndex])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function proceedLockMessage(problem) {
+  if (!hasSolvingWork(problem)) {
+    return "Add scratch work before moving ahead.";
+  }
+
+  if (!hasCompleteAnswer(problem)) {
+    return "Enter an answer before moving ahead.";
+  }
+
+  return "Complete earlier problems before moving ahead.";
 }
 
 function shouldRunTimer(problem) {
   return (
     !state.checked &&
     !problem.timedOut &&
-    !hasCompleteAnswer(problem) &&
+    !hasSolvedProblem(problem) &&
     problem.timeSpentMs < timeLimitMs()
   );
 }
@@ -248,7 +286,10 @@ function updateProblemResult(problem) {
   }
 
   problem.result =
-    problem.userAnswer !== "" && Number(problem.userAnswer) === problem.answer;
+    !problem.timedOut &&
+    hasSolvingWork(problem) &&
+    problem.userAnswer !== "" &&
+    Number(problem.userAnswer) === problem.answer;
 }
 
 function updateAllResults() {
@@ -308,6 +349,14 @@ function renderProblemGrid() {
       button.classList.add("timed-out");
     }
 
+    if (!canSelectProblem(index)) {
+      button.disabled = true;
+      button.title =
+        index === state.currentIndex + 1
+          ? proceedLockMessage(currentProblem())
+          : "Complete earlier problems before moving ahead.";
+    }
+
     const status = problem.result === true
       ? "correct"
       : problem.result === false
@@ -317,7 +366,8 @@ function renderProblemGrid() {
           : problem.userAnswer
             ? "answered"
             : "empty";
-    button.setAttribute("aria-label", `Problem ${index + 1}, ${status}`);
+    const lockStatus = button.disabled ? ", locked" : "";
+    button.setAttribute("aria-label", `Problem ${index + 1}, ${status}${lockStatus}`);
     button.addEventListener("click", () => selectProblem(index));
     elements.problemGrid.append(button);
   });
@@ -350,7 +400,7 @@ function renderTimer() {
   const problem = currentProblem();
   const remaining = remainingMs(problem);
   const isExpired = problem.timedOut || remaining <= 0;
-  const isStopped = state.checked || hasCompleteAnswer(problem);
+  const isStopped = state.checked || hasSolvedProblem(problem);
 
   elements.timerText.textContent = formatClock(remaining);
   elements.timerDisplay.classList.toggle("warning", !isExpired && !isStopped && remaining <= 10000);
@@ -388,8 +438,11 @@ function renderCurrentProblem() {
   elements.answerInput.value = problem.userAnswer;
   renderAnswerEntryState();
 
+  const nextLocked =
+    state.currentIndex < state.problems.length - 1 && !canSelectProblem(state.currentIndex + 1);
   elements.previousButton.disabled = state.currentIndex === 0;
-  elements.nextButton.disabled = state.currentIndex === state.problems.length - 1;
+  elements.nextButton.disabled = state.currentIndex === state.problems.length - 1 || nextLocked;
+  elements.nextButton.title = nextLocked ? proceedLockMessage(problem) : "Next problem";
 
   elements.feedback.className = "feedback";
   if (!state.checked) {
@@ -422,6 +475,14 @@ function renderToolButtons() {
   elements.clearScratchButton.disabled = toolsDisabled;
 }
 
+function renderActionButtons() {
+  const canCheck = !state.checked && allProblemsComplete();
+  elements.checkSetButton.disabled = !canCheck;
+  elements.checkSetButton.title = canCheck
+    ? "Check set"
+    : "Complete every problem or let time expire before checking.";
+}
+
 function render() {
   renderSettings();
   renderScore();
@@ -430,7 +491,17 @@ function render() {
   renderCurrentProblem();
   renderTimer();
   renderToolButtons();
+  renderActionButtons();
   renderScratch();
+}
+
+function finishScratchChange() {
+  render();
+  syncCurrentTimer();
+
+  if (!state.checked && allProblemsComplete()) {
+    checkSet();
+  }
 }
 
 function clearTimerInterval() {
@@ -530,6 +601,11 @@ function selectProblem(index) {
     return;
   }
 
+  if (!canSelectProblem(index)) {
+    renderCurrentProblem();
+    return;
+  }
+
   commitCurrentTimer();
   state.currentIndex = index;
   state.activeStroke = null;
@@ -549,6 +625,11 @@ function newSet() {
 }
 
 function checkSet() {
+  if (!allProblemsComplete()) {
+    render();
+    return;
+  }
+
   commitCurrentTimer();
   clearTimerInterval();
   state.checked = true;
@@ -741,8 +822,7 @@ function stopDrawing(event) {
   currentProblem().strokes.push(state.activeStroke);
   state.isDrawing = false;
   state.activeStroke = null;
-  renderScratch();
-  renderAnswerEntryState();
+  finishScratchChange();
 }
 
 function cancelDrawing(event) {
@@ -760,8 +840,7 @@ function undoStroke() {
   }
 
   currentProblem().strokes.pop();
-  renderScratch();
-  renderAnswerEntryState();
+  finishScratchChange();
 }
 
 function clearScratch() {
@@ -770,8 +849,7 @@ function clearScratch() {
   }
 
   currentProblem().strokes = [];
-  renderScratch();
-  renderAnswerEntryState();
+  finishScratchChange();
 }
 
 function attachEvents() {
@@ -857,8 +935,7 @@ function attachEvents() {
       currentProblem().strokes.push(state.activeStroke);
       state.isDrawing = false;
       state.activeStroke = null;
-      renderScratch();
-      renderAnswerEntryState();
+      finishScratchChange();
     }
   });
 
