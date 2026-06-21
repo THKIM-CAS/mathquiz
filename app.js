@@ -202,7 +202,7 @@ function canAcceptAnswer(problem) {
 }
 
 function canTypeInAnswerField(problem) {
-  return canAcceptAnswer(problem) && !hasSolvingWork(problem);
+  return canAcceptAnswer(problem) && hasSolvingWork(problem);
 }
 
 function canProceedFromProblem(problem) {
@@ -423,7 +423,7 @@ function renderAnswerEntryState() {
     ? "Answer entry is closed for this problem."
     : textEntryAllowed
       ? ""
-      : "Use the keypad after scratch work has been entered.";
+      : "Add scratch work before typing an answer.";
 
   elements.keypad.querySelectorAll("button").forEach((button) => {
     button.disabled = !acceptsAnswer;
